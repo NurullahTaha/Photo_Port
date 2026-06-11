@@ -179,26 +179,33 @@ function bindShell() {
   document.getElementById('btn-new-folder').addEventListener('click', openFolderModal);
   document.getElementById('btn-settings').addEventListener('click', openSettingsModal);
 
-  // Whole-window drag & drop upload
+  // Whole-window drag & drop upload.
+  // Visibility is driven by a watchdog timer refreshed on every dragover:
+  // browsers (notably on Windows) sometimes skip a dragleave, so
+  // enter/leave counting can wedge the overlay open. dragover keeps firing
+  // a few times per second while a file is held over the window, so if the
+  // events stop, the drag is over and the overlay hides itself.
   const dropzone = document.getElementById('dropzone');
-  let dragDepth = 0;
-  window.addEventListener('dragenter', (e) => {
-    if (!e.dataTransfer?.types.includes('Files')) return;
-    dragDepth++;
-    dropzone.hidden = false;
-  });
-  window.addEventListener('dragleave', () => {
-    dragDepth = Math.max(0, dragDepth - 1);
-    if (dragDepth === 0) dropzone.hidden = true;
-  });
+  let hideTimer = null;
+  const hideDropzone = () => {
+    clearTimeout(hideTimer);
+    hideTimer = null;
+    dropzone.hidden = true;
+  };
   window.addEventListener('dragover', (e) => {
-    if (e.dataTransfer?.types.includes('Files')) e.preventDefault();
+    if (!e.dataTransfer?.types.includes('Files')) return;
+    e.preventDefault();
+    dropzone.hidden = false;
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(hideDropzone, 500);
+  });
+  window.addEventListener('dragleave', (e) => {
+    if (e.relatedTarget === null) hideDropzone();
   });
   window.addEventListener('drop', (e) => {
     if (!e.dataTransfer?.types.includes('Files')) return;
     e.preventDefault();
-    dragDepth = 0;
-    dropzone.hidden = true;
+    hideDropzone();
     const files = [...e.dataTransfer.files].filter((f) => f.type.startsWith('image/'));
     if (files.length) startUpload(files);
   });
