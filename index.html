@@ -14,8 +14,10 @@
     <link rel="stylesheet" href="/client/src/styles/main.css" />
   </head>
   <body>
+    <div id="marquee" aria-hidden="true"><div class="marquee-track"></div></div>
     <canvas id="gl" aria-hidden="true"></canvas>
     <div id="grain" aria-hidden="true"></div>
+    <div id="intro-title" aria-hidden="true"></div>
 
     <div id="preloader" role="status" aria-label="Loading gallery">
       <div class="preloader-inner">
@@ -45,6 +47,7 @@
 
     <div id="hint"><span></span>Scroll&nbsp;·&nbsp;Drag&nbsp;·&nbsp;Click</div>
     <a id="admin-link" href="/admin">Admin</a>
+    <div id="progress" aria-hidden="true"><span></span></div>
 
     <section id="collections-overlay" class="overlay" hidden>
       <img class="overlay-preview" alt="" aria-hidden="true" />

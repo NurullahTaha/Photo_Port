@@ -59,10 +59,56 @@ a {
   color: var(--bg);
 }
 
+/* Until the intro hands control back, chrome is display-only. */
+body:not(.ready) #site-header,
+body:not(.ready) #caption,
+body:not(.ready) #admin-link {
+  pointer-events: none;
+}
+
+/* --- kinetic marquee (behind the canvas) ----------------------------------- */
+#marquee {
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 1.2s var(--ease);
+}
+
+body.ready #marquee {
+  opacity: 1;
+}
+
+body.ui-open #marquee {
+  opacity: 0.35;
+}
+
+body.detail-open #marquee,
+body.empty #marquee {
+  opacity: 0;
+}
+
+.marquee-track {
+  white-space: nowrap;
+  font-family: var(--serif);
+  font-weight: 300;
+  font-size: clamp(7rem, 24vw, 22rem);
+  line-height: 1;
+  letter-spacing: 0.02em;
+  color: transparent;
+  -webkit-text-stroke: 1px rgba(234, 231, 224, 0.17);
+  will-change: transform;
+}
+
 /* --- canvas + grain ------------------------------------------------------ */
 #gl {
   position: fixed;
   inset: 0;
+  z-index: 1;
   width: 100%;
   height: 100%;
   display: block;
@@ -84,6 +130,45 @@ a {
   50% { transform: translate(18px, -30px); }
   75% { transform: translate(-26px, -12px); }
   100% { transform: translate(0, 0); }
+}
+
+/* --- intro title ----------------------------------------------------------- */
+#intro-title {
+  position: fixed;
+  inset: 0;
+  z-index: 95;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  text-align: center;
+  will-change: transform, opacity;
+}
+
+.intro-line {
+  overflow: hidden;
+  padding-bottom: 0.06em;
+}
+
+.intro-line-inner {
+  display: block;
+  font-family: var(--serif);
+  font-weight: 300;
+  font-size: clamp(3.2rem, 11vw, 9.5rem);
+  line-height: 1.02;
+  letter-spacing: -0.01em;
+  will-change: transform;
+}
+
+.intro-line-tag .intro-line-inner {
+  font-family: var(--sans);
+  font-size: 0.72rem;
+  font-weight: 500;
+  letter-spacing: 0.4em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-top: 2.2rem;
 }
 
 /* --- preloader ------------------------------------------------------------ */
@@ -146,14 +231,6 @@ a {
   justify-content: space-between;
   align-items: center;
   padding: 2rem 2.6rem;
-  opacity: 0;
-  transform: translateY(-8px);
-  transition: opacity 0.9s var(--ease) 0.15s, transform 0.9s var(--ease) 0.15s;
-}
-
-body.ready #site-header {
-  opacity: 1;
-  transform: none;
 }
 
 .brand {
@@ -161,6 +238,7 @@ body.ready #site-header {
   font-weight: 600;
   letter-spacing: 0.34em;
   text-transform: uppercase;
+  display: inline-block;
 }
 
 .site-nav {
@@ -196,20 +274,13 @@ body.ready #site-header {
   bottom: 2.4rem;
   z-index: 30;
   max-width: 46vw;
-  opacity: 0;
-  transform: translateY(10px);
-  transition: opacity 0.9s var(--ease) 0.35s, transform 0.9s var(--ease) 0.35s;
   pointer-events: none;
-}
-
-body.ready #caption {
-  opacity: 1;
-  transform: none;
+  transition: opacity 0.45s var(--ease);
 }
 
 body.ui-open #caption,
 body.detail-open #caption {
-  opacity: 0;
+  opacity: 0 !important;
 }
 
 .caption-folder {
@@ -228,6 +299,7 @@ body.detail-open #caption {
   font-size: clamp(1.6rem, 3.4vw, 2.7rem);
   line-height: 1.05;
   letter-spacing: 0.01em;
+  min-height: 1.1em;
 }
 
 .caption-index {
@@ -236,9 +308,16 @@ body.detail-open #caption {
   letter-spacing: 0.2em;
   color: var(--muted);
   font-variant-numeric: tabular-nums;
+  min-height: 1em;
 }
 
-/* --- hint + admin link -------------------------------------------------------- */
+.ch {
+  display: inline-block;
+  white-space: pre;
+  will-change: transform, opacity;
+}
+
+/* --- hint + admin link + progress -------------------------------------------- */
 #hint {
   position: fixed;
   bottom: 2.5rem;
@@ -252,8 +331,7 @@ body.detail-open #caption {
   display: flex;
   align-items: center;
   gap: 0.9rem;
-  opacity: 0;
-  transition: opacity 1s var(--ease) 0.8s;
+  transition: opacity 0.45s var(--ease);
 }
 
 #hint span {
@@ -269,17 +347,11 @@ body.detail-open #caption {
   50% { transform: scaleX(1); opacity: 1; }
 }
 
-body.ready #hint {
-  opacity: 1;
-}
-
 body.hinted #hint,
 body.ui-open #hint,
 body.detail-open #hint,
 body.empty #hint {
-  opacity: 0;
-  transition-delay: 0s;
-  transition-duration: 0.4s;
+  opacity: 0 !important;
 }
 
 #admin-link {
@@ -291,17 +363,38 @@ body.empty #hint {
   letter-spacing: 0.3em;
   text-transform: uppercase;
   color: var(--muted);
-  opacity: 0;
-  transition: color 0.3s, opacity 0.9s var(--ease) 0.5s;
-}
-
-body.ready #admin-link {
-  opacity: 0.55;
+  transition: color 0.3s, opacity 0.45s;
 }
 
 #admin-link:hover {
   color: var(--fg);
-  opacity: 1;
+}
+
+#progress {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 2px;
+  z-index: 30;
+  pointer-events: none;
+  transition: opacity 0.45s;
+}
+
+#progress span {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  opacity: 0.55;
+  transform: scaleX(0);
+  transform-origin: left;
+  will-change: transform;
+}
+
+body.detail-open #progress,
+body.ui-open #progress,
+body.empty #progress {
+  opacity: 0 !important;
 }
 
 /* --- overlays (collections / about) ----------------------------------------- */
@@ -347,6 +440,7 @@ body.ready #admin-link {
   text-transform: uppercase;
   color: var(--muted);
   transition: color 0.3s;
+  display: inline-block;
 }
 
 .overlay-close:hover {
@@ -711,6 +805,10 @@ body.link-hover .cursor-ring {
 
 @media (prefers-reduced-motion: reduce) {
   #grain {
+    animation: none;
+  }
+
+  #hint span {
     animation: none;
   }
 
