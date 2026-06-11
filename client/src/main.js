@@ -61,17 +61,34 @@ async function boot() {
   const counter = { value: 0 };
   const countEl = $('.preloader-count');
   const barEl = $('.preloader-bar');
+  const drawCount = () => {
+    countEl.textContent = String(Math.round(counter.value)).padStart(2, '0');
+    barEl.style.transform = `scaleX(${counter.value / 100})`;
+  };
+  const loadStart = performance.now();
   const entries = await gallery.preload(state.photos, (p) => {
     gsap.to(counter, {
       value: p * 100,
       duration: 0.4,
       ease: 'power1.out',
-      onUpdate: () => {
-        countEl.textContent = String(Math.round(counter.value)).padStart(2, '0');
-        barEl.style.transform = `scaleX(${counter.value / 100})`;
-      }
+      onUpdate: drawCount
     });
   });
+
+  // Local loads finish in milliseconds; hold the preloader long enough for
+  // the count-up to register as a moment instead of a flash.
+  if (!REDUCED_MOTION) {
+    const elapsed = performance.now() - loadStart;
+    const remaining = Math.max(0.6, (2500 - elapsed) / 1000);
+    await gsap.to(counter, {
+      value: 100,
+      duration: remaining,
+      ease: 'power2.inOut',
+      overwrite: true,
+      onUpdate: drawCount
+    });
+    await gsap.to({}, { duration: 0.3 }); // beat at 100
+  }
 
   gallery.build(entries, { entered: false });
   setMarqueeText(marqueeName());
@@ -112,6 +129,8 @@ function marqueeName() {
 function buildIntroTitle() {
   const el = $('#intro-title');
   el.innerHTML = '';
+  const box = document.createElement('div');
+  box.className = 'intro-box';
   const name = state.settings.photographer || state.settings.siteTitle || '';
   for (const word of name.split(/\s+/).filter(Boolean)) {
     const line = document.createElement('div');
@@ -120,7 +139,7 @@ function buildIntroTitle() {
     inner.className = 'intro-line-inner';
     inner.textContent = word;
     line.appendChild(inner);
-    el.appendChild(line);
+    box.appendChild(line);
   }
   if (state.settings.tagline) {
     const line = document.createElement('div');
@@ -129,29 +148,31 @@ function buildIntroTitle() {
     inner.className = 'intro-line-inner';
     inner.textContent = state.settings.tagline;
     line.appendChild(inner);
-    el.appendChild(line);
+    box.appendChild(line);
   }
+  el.appendChild(box);
 }
 
-function shrinkTitleToBrand() {
-  const title = $('#intro-title');
-  const brand = $('.brand');
+/** The big intro name glides into the persistent hero block, top-left. */
+function shrinkTitleToHero() {
   const tl = gsap.timeline();
   tl.add(() => {
+    const box = $('.intro-box');
+    const hero = $('#hero');
     // Measured at play time, after the lines have revealed.
-    const tr = title.getBoundingClientRect();
-    const br = brand.getBoundingClientRect();
-    const scale = Math.max(0.05, br.height / Math.max(tr.height, 1));
-    const dx = br.left + br.width / 2 - (tr.left + tr.width / 2);
-    const dy = br.top + br.height / 2 - (tr.top + tr.height / 2);
-    gsap.to(title, { x: dx, y: dy, scale, duration: 1.0, ease: 'expo.inOut' });
-    gsap.to(title, { opacity: 0, duration: 0.3, delay: 0.55 });
+    const br = box.getBoundingClientRect();
+    const hr = hero.getBoundingClientRect();
+    const scale = Math.max(0.1, hr.height / Math.max(br.height, 1));
+    const dx = hr.left + hr.width / 2 - (br.left + br.width / 2);
+    const dy = hr.top + hr.height / 2 - (br.top + br.height / 2);
+    gsap.to(box, { x: dx, y: dy, scale, duration: 1.0, ease: 'expo.inOut' });
+    gsap.to(box, { opacity: 0, duration: 0.35, delay: 0.6 });
     gsap.fromTo(
-      brand,
-      { opacity: 0, y: 6 },
-      { opacity: 1, y: 0, duration: 0.5, delay: 0.6 }
+      hero,
+      { opacity: 0, y: 10 },
+      { opacity: 1, y: 0, duration: 0.6, delay: 0.62 }
     );
-    gsap.delayedCall(1.1, () => title.remove());
+    gsap.delayedCall(1.2, () => $('#intro-title').remove());
   });
   return tl;
 }
@@ -159,7 +180,7 @@ function shrinkTitleToBrand() {
 function playIntro() {
   buildIntroTitle();
   const uiBits = ['.nav-link', '#caption', '#hint', '#admin-link', '#progress'];
-  gsap.set(['.brand', ...uiBits], { opacity: 0 });
+  gsap.set(['.brand', '#hero', ...uiBits], { opacity: 0 });
   updateCaption(gallery.centerItem);
 
   const tl = gsap.timeline();
@@ -180,13 +201,13 @@ function playIntro() {
     '-=0.35'
   );
   tl.add(gallery.introPlay(), '-=0.55');
-  tl.add(shrinkTitleToBrand(), '-=2.0');
-  tl.to('.nav-link', { opacity: 1, y: 0, duration: 0.6, stagger: 0.12 }, '-=1.0');
+  tl.add(shrinkTitleToHero(), '-=2.0');
+  tl.to(['.brand', '.nav-link'], { opacity: 1, y: 0, duration: 0.6, stagger: 0.12 }, '-=1.0');
   tl.to('#caption', { opacity: 1, duration: 0.7 }, '-=0.7');
   tl.to(['#hint', '#admin-link', '#progress'], { opacity: 1, duration: 0.7 }, '-=0.45');
   tl.add(() => {
     document.body.classList.add('ready');
-    gsap.set(['.brand', ...uiBits], { clearProps: 'opacity,transform' });
+    gsap.set(['.brand', '#hero', ...uiBits], { clearProps: 'opacity,transform' });
     updateCaption(gallery.centerItem);
   });
   if (window.innerWidth < 720) tl.timeScale(1.45);
@@ -242,6 +263,8 @@ function applySettings() {
   const s = state.settings;
   document.title = s.siteTitle || 'Photo Port';
   $$('[data-site-title]').forEach((el) => (el.textContent = s.siteTitle || 'PHOTO PORT'));
+  $('.hero-name').textContent = s.photographer || s.siteTitle || '';
+  $('.hero-tag').textContent = s.tagline || '';
   $('.about-name').textContent = s.photographer || s.siteTitle || '';
   $('.about-text').textContent = s.about || '';
   const links = $('.about-links');
