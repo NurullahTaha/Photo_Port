@@ -48,6 +48,7 @@ export class Gallery {
     this.calm = 0; // 1 = all decorative motion suppressed
     this.time = 0;
     this.lastInput = 0;
+    this._snapped = false;
     this.pointerSpeed = 0;
     this.hoveredItem = null;
     this.centerItem = null;
@@ -74,6 +75,7 @@ export class Gallery {
 
   markInput() {
     this.lastInput = this.time;
+    this._snapped = false;
   }
 
   // --- sizing ---------------------------------------------------------------
@@ -237,6 +239,9 @@ export class Gallery {
         hover: 0,
         focus: 0,
         ripple: 0,
+        tiltX: 0,
+        tiltY: 0,
+        hitUv: null,
         phase: Math.random() * Math.PI * 2,
         // Intro deck pose: loosely stacked near center, deep in Z.
         stackX: (Math.random() - 0.5) * this.viewport.width * 0.18,
@@ -290,7 +295,8 @@ export class Gallery {
       item.mesh.position.x = x;
       item.mesh.position.y = bob * p;
       item.mesh.position.z = (arcZ + recede) * p + item.stackZ * (1 - p);
-      item.mesh.rotation.y = -x * 0.018 * p;
+      item.mesh.rotation.x = item.tiltX * p;
+      item.mesh.rotation.y = (-x * 0.018 + item.tiltY) * p;
       item.mesh.rotation.z = item.stackRot * (1 - p);
       const f = 1 + item.focus * 0.06;
       item.mesh.scale.set(item.width * f, this.planeH * f, 1);
@@ -542,6 +548,7 @@ export class Gallery {
         if (hits.length) {
           hovered = hits[0].object.userData.item;
           hitUv = hits[0].uv;
+          hovered.hitUv = hitUv;
         }
       }
       if (hovered !== this.hoveredItem) {
@@ -562,6 +569,14 @@ export class Gallery {
         const targetHover = item === this.hoveredItem ? 1 : 0;
         item.hover = THREE.MathUtils.damp(item.hover, targetHover, 8, dt);
         u.uHover.value = item.hover;
+
+        // Tactile tilt toward the cursor position on the hovered plane.
+        const wantTilt =
+          !REDUCED_MOTION && item === this.hoveredItem && item.hitUv ? 1 : 0;
+        const tiltXT = wantTilt ? (item.hitUv.y - 0.5) * 0.12 : 0;
+        const tiltYT = wantTilt ? (item.hitUv.x - 0.5) * 0.16 : 0;
+        item.tiltX = THREE.MathUtils.damp(item.tiltX, tiltXT, 7, dt);
+        item.tiltY = THREE.MathUtils.damp(item.tiltY, tiltYT, 7, dt);
 
         // Rack focus: continuous falloff from screen center.
         const focusTarget =
@@ -587,6 +602,21 @@ export class Gallery {
       if (nearest !== this.centerItem) {
         this.centerItem = nearest;
         if (this.onCenterChange) this.onCenterChange(nearest);
+      }
+
+      // Once a scroll settles, ease the nearest photo onto dead center.
+      if (
+        !REDUCED_MOTION &&
+        !this._snapped &&
+        !this.locked &&
+        !this.uiOpen() &&
+        this.centerItem &&
+        this.time - this.lastInput > 0.9 &&
+        Math.abs(this.scroll.velocity) < 0.05 &&
+        Math.abs(this.scroll.target - this.scroll.current) < this.viewport.width * 0.02
+      ) {
+        this.scroll.target += this.centerItem.mesh.position.x;
+        this._snapped = true;
       }
 
       this.positionItems();

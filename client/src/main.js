@@ -377,6 +377,11 @@ function buildCollectionsList() {
     li.appendChild(btn);
     list.appendChild(li);
   });
+
+  const total = countAllPhotos();
+  $('.about-stats').textContent =
+    `${state.folders.length} collection${state.folders.length === 1 ? '' : 's'}` +
+    ` · ${total} photograph${total === 1 ? '' : 's'}`;
 }
 
 function countAllPhotos() {
@@ -415,7 +420,25 @@ function openOverlay(el) {
   if (state.detailOpen || !isReady()) return;
   el.hidden = false;
   document.body.classList.add('ui-open');
-  requestAnimationFrame(() => el.classList.add('open'));
+  requestAnimationFrame(() => {
+    el.classList.add('open');
+    if (REDUCED_MOTION) return;
+    for (const group of $$('[data-stagger]', el)) {
+      gsap.fromTo(
+        group.children,
+        { y: 26, autoAlpha: 0 },
+        {
+          y: 0,
+          autoAlpha: 1,
+          duration: 0.75,
+          ease: 'expo.out',
+          stagger: 0.055,
+          delay: 0.1,
+          overwrite: true
+        }
+      );
+    }
+  });
 }
 
 function closeOverlay(el) {
@@ -470,11 +493,31 @@ function fillDetailMeta(photo) {
   const idx = state.photos.findIndex((p) => p.id === photo.id);
   const folder = state.folders.find((f) => f.id === photo.folderId);
   $('.detail-folder').textContent = folder ? folder.name : state.settings.siteTitle;
-  $('.detail-title').textContent = photo.title || 'Untitled';
+  animateText($('.detail-title'), photo.title || 'Untitled');
   $('.detail-index').textContent = `${String(idx + 1).padStart(2, '0')} / ${String(
     state.photos.length
   ).padStart(2, '0')}`;
   $('.detail-img').alt = photo.alt || photo.title || 'Photograph';
+  // Ambient backdrop lit by the photo itself.
+  $('.detail-backdrop').style.backgroundImage = `url("${photo.url}")`;
+}
+
+let kenBurnsTween = null;
+
+function startKenBurns(img, delay = 0) {
+  stopKenBurns(img);
+  if (REDUCED_MOTION) return;
+  kenBurnsTween = gsap.fromTo(
+    img,
+    { scale: 1 },
+    { scale: 1.045, duration: 10, ease: 'none', delay }
+  );
+}
+
+function stopKenBurns(img) {
+  if (kenBurnsTween) kenBurnsTween.kill();
+  kenBurnsTween = null;
+  gsap.set(img, { scale: 1 });
 }
 
 /** Of all looped planes showing this photo, the one closest to screen center. */
@@ -517,6 +560,7 @@ async function openDetail(photo, clickedItem = null) {
     { opacity: 0, y: 14 },
     { opacity: 1, y: 0, duration: dur, delay: dur * 0.4, ease: 'power2.out' }
   );
+  startKenBurns(img, dur);
 }
 
 async function navigateDetail(direction) {
@@ -529,6 +573,7 @@ async function navigateDetail(direction) {
   const dur = REDUCED_MOTION ? 0 : 0.28;
 
   await gsap.to(img, { opacity: 0, duration: dur, ease: 'power1.in' });
+  stopKenBurns(img);
   await new Promise((resolve) => {
     img.onload = resolve;
     img.onerror = resolve;
@@ -537,6 +582,7 @@ async function navigateDetail(direction) {
   setImgRect(img, detailTargetRect(photo));
   fillDetailMeta(photo);
   gsap.to(img, { opacity: 1, duration: dur, ease: 'power1.out' });
+  startKenBurns(img, dur);
 }
 
 async function closeDetail() {
@@ -545,6 +591,7 @@ async function closeDetail() {
   const overlay = $('#detail-overlay');
   const img = $('.detail-img');
 
+  stopKenBurns(img);
   // Line the strip up behind the overlay so the photo returns to its plane.
   const item = nearestItemFor(photo.id);
   gallery.locked = false;
